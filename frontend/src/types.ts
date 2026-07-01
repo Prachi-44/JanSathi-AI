@@ -3,6 +3,8 @@ export type Category = "General" | "OBC" | "SC" | "ST" | "EWS";
 export type EmploymentStatus = "employed" | "self_employed" | "unemployed" | "student" | "retired";
 
 export interface EligibilityRequest {
+  name: string;
+  consent: boolean;
   age: number;
   gender: Gender;
   occupation: string;
@@ -35,6 +37,9 @@ export interface Scheme {
 export interface SchemeDecision {
   scheme: Scheme;
   reasons: string[];
+  score: number;
+  match_percentage: number;
+  breakdown: Record<string, boolean>;
 }
 
 export interface EligibilityResponse {

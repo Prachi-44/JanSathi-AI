@@ -1,10 +1,10 @@
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Loader2, ShieldCheck } from "lucide-react";
+import { FileUp, Loader2, ShieldCheck } from "lucide-react";
 import { useMemo, useState } from "react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 
-import { checkEligibility } from "../services/api";
+import { checkEligibility, uploadDocumentOCR } from "../services/api";
 import type { EligibilityRequest, EligibilityResponse } from "../types";
 import { useToast } from "../hooks/useToast";
 import { Button } from "./ui/button";
@@ -12,11 +12,15 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "./ui/
 import { Field, checkboxClassName, inputClassName } from "./ui/form-field";
 
 const schema = z.object({
-  age: z.coerce.number().int().min(0).max(120),
+  name: z.string().min(2, "Name must be at least 2 characters").max(100),
+  consent: z.literal(true, {
+    errorMap: () => ({ message: "Consent is required to run eligibility checks." }),
+  }),
+  age: z.coerce.number().int().min(0, "Age must be positive").max(120),
   gender: z.enum(["female", "male", "other", "prefer_not_to_say"]),
-  occupation: z.string().min(2).max(80),
-  income: z.coerce.number().int().min(0).max(100000000),
-  state: z.string().min(2).max(80),
+  occupation: z.string().min(2, "Occupation is required").max(80),
+  income: z.coerce.number().int().min(0, "Income must be positive"),
+  state: z.string().min(2, "State of residence is required").max(80),
   disability_status: z.boolean(),
   category: z.enum(["General", "OBC", "SC", "ST", "EWS"]),
   student_status: z.boolean(),
@@ -28,6 +32,8 @@ const schema = z.object({
 });
 
 const defaultValues: EligibilityRequest = {
+  name: "Prachi Dudhankar",
+  consent: true,
   age: 38,
   gender: "female",
   occupation: "farmer",
@@ -49,10 +55,13 @@ interface Props {
 
 export function EligibilityForm({ onResult }: Props) {
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [ocrLoading, setOcrLoading] = useState(false);
   const { showToast } = useToast();
+  
   const {
     register,
     handleSubmit,
+    setValue,
     formState: { errors },
   } = useForm<EligibilityRequest>({
     resolver: zodResolver(schema),
@@ -61,15 +70,54 @@ export function EligibilityForm({ onResult }: Props) {
 
   const booleanFields = useMemo(
     () => [
-      { name: "student_status", label: "Student" },
-      { name: "farmer_status", label: "Farmer" },
-      { name: "disability_status", label: "Person with disability" },
-      { name: "rural_resident", label: "Rural resident" },
-      { name: "has_pucca_house", label: "Owns pucca house" },
-      { name: "has_bank_account", label: "Has bank account" },
+      { name: "student_status", label: "Student Flag" },
+      { name: "farmer_status", label: "Farmer Flag" },
+      { name: "disability_status", label: "Disabled Flag" },
+      { name: "rural_resident", label: "Rural Resident" },
+      { name: "has_pucca_house", label: "Owns Pucca House" },
+      { name: "has_bank_account", label: "Has Bank Account" },
     ] as const,
     [],
   );
+
+  async function handleOcrUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setOcrLoading(true);
+    const formData = new FormData();
+    formData.append("file", file);
+    formData.append("consent", "true");
+
+    try {
+      const response = await uploadDocumentOCR(formData);
+      if (response.status === "success") {
+        const details = response.data;
+        showToast({
+          title: "OCR Scan Completed",
+          description: `Extracted data for ${details.name || "citizen"} with confidence ${Math.round(details.confidence_score * 100)}%`,
+        });
+        
+        // Auto-fill values
+        if (details.name) setValue("name", details.name);
+        if (details.age) setValue("age", details.age);
+        if (details.gender) setValue("gender", details.gender);
+        if (details.occupation) setValue("occupation", details.occupation);
+        if (details.income) setValue("income", details.income);
+        if (details.state) setValue("state", details.state);
+        if (details.category) setValue("category", details.category);
+        if (details.disability_status !== undefined) setValue("disability_status", details.disability_status);
+      }
+    } catch (error: any) {
+      showToast({
+        title: "OCR Processing Failed",
+        description: error.response?.data?.detail || "Please verify the document format is valid.",
+        variant: "error",
+      });
+    } finally {
+      setOcrLoading(false);
+    }
+  }
 
   async function onSubmit(values: EligibilityRequest) {
     setIsSubmitting(true);
@@ -77,13 +125,13 @@ export function EligibilityForm({ onResult }: Props) {
       const result = await checkEligibility(values);
       onResult(result);
       showToast({
-        title: "Eligibility checked",
-        description: `${result.eligible_schemes.length} matching schemes found.`,
+        title: "Eligibility Match Successful",
+        description: `${result.eligible_schemes.length} eligible government schemes mapped.`,
       });
-    } catch (error) {
+    } catch (error: any) {
       showToast({
-        title: "Eligibility check failed",
-        description: error instanceof Error ? error.message : "Please verify the backend is running.",
+        title: "Eligibility Check Failed",
+        description: error.response?.data?.detail || error.message || "Server error.",
         variant: "error",
       });
     } finally {
@@ -92,27 +140,49 @@ export function EligibilityForm({ onResult }: Props) {
   }
 
   return (
-    <Card>
-      <CardHeader>
+    <Card className="shadow-soft border-primary/20">
+      <CardHeader className="pb-3 border-b mb-4">
         <div className="flex items-center gap-3">
-          <span className="grid h-10 w-10 place-items-center rounded-md bg-primary/10 text-primary">
-            <ShieldCheck className="h-5 w-5" />
+          <span className="grid h-10 w-10 place-items-center rounded-xl bg-primary/10 text-primary">
+            <ShieldCheck className="h-6 w-6" />
           </span>
           <div>
-            <CardTitle>Eligibility Profile</CardTitle>
-            <CardDescription>Validated locally before sending to FastAPI.</CardDescription>
+            <CardTitle className="text-lg">Eligibility Profile Wizard</CardTitle>
+            <CardDescription className="text-xs">Deterministic matching engine validation</CardDescription>
           </div>
         </div>
       </CardHeader>
-      <CardContent>
-        <form className="grid gap-5" onSubmit={handleSubmit(onSubmit)}>
-          <div className="grid gap-4 md:grid-cols-2">
+      <CardContent className="space-y-5">
+        {/* Step 1: Document upload hub */}
+        <div className="rounded-xl border border-dashed border-primary/30 p-4 bg-primary/5 text-center">
+          <FileUp className="h-6 w-6 text-primary mx-auto mb-2" />
+          <p className="text-xs font-semibold text-primary">Auto-fill via Identity Document (OCR)</p>
+          <p className="text-[10px] text-muted-foreground mt-1 mb-3">
+            Upload Aadhaar card or Marksheet. Masking is applied in-memory.
+          </p>
+          <label className="inline-flex h-9 items-center justify-center rounded-md bg-primary px-3 text-xs font-medium text-primary-foreground hover:bg-primary/95 cursor-pointer">
+            {ocrLoading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+            <span>{ocrLoading ? "Scanning Document..." : "Upload Document"}</span>
+            <input type="file" className="hidden" accept="image/*,application/pdf" onChange={handleOcrUpload} disabled={ocrLoading} />
+          </label>
+        </div>
+
+        <form className="space-y-4" onSubmit={handleSubmit(onSubmit)}>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="sm:col-span-2">
+              <Field label="Citizen Name" error={errors.name?.message}>
+                <input className={inputClassName} type="text" {...register("name")} />
+              </Field>
+            </div>
+            
             <Field label="Age" error={errors.age?.message}>
               <input className={inputClassName} type="number" min={0} max={120} {...register("age")} />
             </Field>
-            <Field label="Annual income" error={errors.income?.message}>
+
+            <Field label="Annual Income (INR)" error={errors.income?.message}>
               <input className={inputClassName} type="number" min={0} {...register("income")} />
             </Field>
+
             <Field label="Gender" error={errors.gender?.message}>
               <select className={inputClassName} {...register("gender")}>
                 <option value="female">Female</option>
@@ -121,6 +191,7 @@ export function EligibilityForm({ onResult }: Props) {
                 <option value="prefer_not_to_say">Prefer not to say</option>
               </select>
             </Field>
+
             <Field label="Category" error={errors.category?.message}>
               <select className={inputClassName} {...register("category")}>
                 <option value="General">General</option>
@@ -130,28 +201,33 @@ export function EligibilityForm({ onResult }: Props) {
                 <option value="EWS">EWS</option>
               </select>
             </Field>
+
             <Field label="Occupation" error={errors.occupation?.message}>
-              <input className={inputClassName} placeholder="Farmer, student, artisan, vendor" {...register("occupation")} />
+              <input className={inputClassName} placeholder="e.g. Farmer, student" {...register("occupation")} />
             </Field>
-            <Field label="State" error={errors.state?.message}>
+
+            <Field label="State of Residence" error={errors.state?.message}>
               <input className={inputClassName} placeholder="Maharashtra" {...register("state")} />
             </Field>
-            <Field label="Employment status" error={errors.employment_status?.message}>
-              <select className={inputClassName} {...register("employment_status")}>
-                <option value="employed">Employed</option>
-                <option value="self_employed">Self-employed</option>
-                <option value="unemployed">Unemployed</option>
-                <option value="student">Student</option>
-                <option value="retired">Retired</option>
-              </select>
-            </Field>
+
+            <div className="sm:col-span-2">
+              <Field label="Employment Status" error={errors.employment_status?.message}>
+                <select className={inputClassName} {...register("employment_status")}>
+                  <option value="employed">Employed</option>
+                  <option value="self_employed">Self-employed</option>
+                  <option value="unemployed">Unemployed</option>
+                  <option value="student">Student</option>
+                  <option value="retired">Retired</option>
+                </select>
+              </Field>
+            </div>
           </div>
 
-          <fieldset className="grid gap-3">
-            <legend className="text-sm font-semibold">Profile flags</legend>
-            <div className="grid gap-3 sm:grid-cols-2">
+          <fieldset className="space-y-2 border-t pt-3">
+            <legend className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Demographic Flags</legend>
+            <div className="grid gap-2 sm:grid-cols-2">
               {booleanFields.map((field) => (
-                <label key={field.name} className="flex min-h-11 items-center gap-3 rounded-md border bg-background px-3 text-sm">
+                <label key={field.name} className="flex h-10 items-center gap-2 rounded-lg border bg-background px-3 text-xs cursor-pointer select-none">
                   <input type="checkbox" className={checkboxClassName} {...register(field.name)} />
                   <span>{field.label}</span>
                 </label>
@@ -159,9 +235,21 @@ export function EligibilityForm({ onResult }: Props) {
             </div>
           </fieldset>
 
-          <Button type="submit" className="h-11 w-full sm:w-auto" disabled={isSubmitting}>
-            {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-            <span>{isSubmitting ? "Checking" : "Check eligibility"}</span>
+          <div className="border-t pt-3 space-y-3">
+            <label className="flex items-start gap-2.5 rounded-lg border border-primary/20 bg-primary/5 p-3 text-xs leading-relaxed cursor-pointer select-none">
+              <input type="checkbox" className={`${checkboxClassName} mt-0.5`} {...register("consent")} />
+              <span className="text-[11px] text-muted-foreground">
+                I verify that my parameters are accurate. I consent to JanSathi processing this profile data to determine matching schemes.
+              </span>
+            </label>
+            {errors.consent?.message && (
+              <p className="text-xs text-destructive mt-1">{errors.consent.message}</p>
+            )}
+          </div>
+
+          <Button type="submit" className="h-11 w-full" disabled={isSubmitting}>
+            {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+            <span>{isSubmitting ? "Calculating Matches..." : "Check Eligible Schemes"}</span>
           </Button>
         </form>
       </CardContent>

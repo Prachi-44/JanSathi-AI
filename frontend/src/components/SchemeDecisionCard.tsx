@@ -1,5 +1,6 @@
-import { ExternalLink } from "lucide-react";
-
+import { Bookmark, BookmarkCheck, ExternalLink, Sparkles } from "lucide-react";
+import { useAuth } from "../context/AuthContext";
+import { useToast } from "../hooks/useToast";
 import type { SchemeDecision } from "../types";
 import { Button } from "./ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "./ui/card";
@@ -7,49 +8,157 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "./ui/
 interface Props {
   decision: SchemeDecision;
   status: "eligible" | "ineligible";
+  onExplain?: (schemeName: string) => void;
 }
 
-export function SchemeDecisionCard({ decision, status }: Props) {
-  const { scheme, reasons } = decision;
+const categoryIcons: Record<string, string> = {
+  "Farmer": "🌾",
+  "Education": "🎓",
+  "Women Welfare": "👩",
+  "Labour": "👨‍🏭",
+  "Pension": "👴",
+  "Disability Support": "🧑‍🦽",
+  "Health": "❤️",
+  "Housing": "🏠",
+  "Business": "💼",
+  "Girl Child": "👧",
+  "Social Welfare": "🤝",
+  "Skill Development": "⚙️",
+};
+
+export function SchemeDecisionCard({ decision, status, onExplain }: Props) {
+  const { scheme, reasons, score, match_percentage, breakdown } = decision;
+  const { user, savedSchemes, toggleSaveScheme } = useAuth();
+  const { showToast } = useToast();
+
+  const isSaved = savedSchemes.includes(scheme.scheme_name);
+  const catIcon = categoryIcons[scheme.category] || "🇮🇳";
+  
+  // Show AI Recommended badge if score is high (e.g. 75+)
+  const isHighMatch = (score || 0) >= 75;
+
+  async function handleSaveToggle() {
+    if (!user) {
+      showToast({
+        title: "Authentication Required",
+        description: "Please log in or register to save schemes to your personal library.",
+        variant: "error",
+      });
+      return;
+    }
+    
+    try {
+      await toggleSaveScheme(scheme.scheme_name);
+      showToast({
+        title: isSaved ? "Scheme Unsaved" : "Scheme Saved",
+        description: `Successfully ${isSaved ? "removed" : "added"} '${scheme.scheme_name}' ${isSaved ? "from" : "to"} your library.`,
+      });
+    } catch (e) {
+      showToast({
+        title: "Action Failed",
+        description: "Unable to update saved status.",
+        variant: "error",
+      });
+    }
+  }
 
   return (
-    <Card className={status === "eligible" ? "border-primary/40" : ""}>
-      <CardHeader>
-        <div className="flex flex-wrap items-start justify-between gap-3">
+    <Card className={`relative shadow-sm transition hover:shadow-md ${status === "eligible" ? "border-primary/30 bg-primary/5" : "border-muted-foreground/10"}`}>
+      {/* Top right badges */}
+      <div className="absolute right-4 top-4 flex items-center gap-2">
+        <span className={`rounded-full px-2 py-0.5 text-[10px] font-extrabold border ${
+          status === "eligible" ? "bg-primary/10 text-primary border-primary/20" : "bg-destructive/10 text-destructive border-destructive/20"
+        }`}>
+          {match_percentage ? `${match_percentage}% Match` : status === "eligible" ? "Eligible" : "Ineligible"}
+        </span>
+      </div>
+
+      <CardHeader className="pb-3 pr-24">
+        <div className="flex gap-2.5 items-start">
+          <span className="text-2xl shrink-0 p-1 bg-background rounded-lg border shadow-sm">{catIcon}</span>
           <div className="min-w-0">
-            <CardTitle className="leading-7">{scheme.scheme_name}</CardTitle>
-            <CardDescription>{scheme.summary}</CardDescription>
+            <CardTitle className="text-base font-bold leading-6 truncate">{scheme.scheme_name}</CardTitle>
+            <CardDescription className="text-xs mt-0.5 leading-normal">{scheme.summary}</CardDescription>
           </div>
-          <span className="rounded-md bg-muted px-2.5 py-1 text-xs font-semibold text-muted-foreground">{scheme.category}</span>
         </div>
       </CardHeader>
-      <CardContent className="grid gap-4">
+      
+      <CardContent className="space-y-4">
+        {/* Match criteria breakdown checkmarks */}
+        {breakdown && Object.keys(breakdown).length > 0 && (
+          <div className="rounded-lg border bg-background/50 p-2.5">
+            <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">Matching Criteria</p>
+            <div className="flex flex-wrap gap-x-3 gap-y-1 text-xs">
+              {Object.entries(breakdown).map(([key, val]) => (
+                <span key={key} className={`flex items-center gap-1 font-medium ${val ? "text-primary" : "text-muted-foreground opacity-60"}`}>
+                  <span>{val ? "✔" : "✘"}</span>
+                  <span className="capitalize text-[10px]">{key}</span>
+                </span>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Reason breakdown */}
         <div>
-          <p className="text-sm font-semibold">Decision reason</p>
-          <ul className="mt-2 grid gap-1 text-sm leading-6 text-muted-foreground">
-            {reasons.map((reason) => (
-              <li key={reason}>{reason}</li>
+          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Evaluation Reasons</p>
+          <ul className="mt-1.5 space-y-1 text-xs text-muted-foreground leading-relaxed pl-4 list-disc">
+            {reasons.map((reason, idx) => (
+              <li key={idx}>{reason}</li>
             ))}
           </ul>
         </div>
-        {status === "eligible" ? (
-          <div className="grid gap-3 rounded-md bg-muted p-3">
+
+        {/* Details list for eligible schemes */}
+        {status === "eligible" && (
+          <div className="grid gap-2.5 rounded-lg bg-background p-3 border shadow-inner">
             <div>
-              <p className="text-sm font-semibold">Benefit</p>
-              <p className="text-sm leading-6 text-muted-foreground">{scheme.benefit}</p>
+              <p className="text-xs font-semibold text-foreground">Scheme Benefit</p>
+              <p className="text-xs text-muted-foreground leading-normal mt-0.5">{scheme.benefit}</p>
             </div>
             <div>
-              <p className="text-sm font-semibold">Documents</p>
-              <p className="text-sm leading-6 text-muted-foreground">{scheme.documents.join(", ")}</p>
+              <p className="text-xs font-semibold text-foreground">Required Documents</p>
+              <p className="text-xs text-muted-foreground leading-normal mt-0.5">
+                {scheme.documents.length ? scheme.documents.join(", ") : "No documents listed"}
+              </p>
             </div>
           </div>
-        ) : null}
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <span className="text-sm text-muted-foreground">{scheme.state}</span>
-          <Button variant="outline" onClick={() => window.open(scheme.official_website, "_blank", "noopener,noreferrer")}>
-            <ExternalLink className="h-4 w-4" />
-            <span>Official site</span>
-          </Button>
+        )}
+
+        {/* Action button triggers */}
+        <div className="flex flex-wrap items-start justify-between gap-3 border-t pt-3.5">
+          <span className="text-xs text-muted-foreground font-medium pt-2">{scheme.state} resident</span>
+          
+          <div className="flex flex-wrap gap-2">
+            <Button
+              variant="ghost"
+              className={`h-9 w-9 p-0 border rounded-lg ${isSaved ? "text-primary bg-primary/5 hover:bg-primary/10" : "text-muted-foreground hover:bg-muted"}`}
+              onClick={handleSaveToggle}
+              title={isSaved ? "Remove from Saved" : "Save Scheme"}
+            >
+              {isSaved ? <BookmarkCheck className="h-4 w-4" /> : <Bookmark className="h-4 w-4" />}
+            </Button>
+            
+            {onExplain && (
+              <Button
+                variant="outline"
+                className="h-9 px-3 border-primary/20 text-primary hover:bg-primary/5 rounded-lg text-xs"
+                onClick={() => onExplain(scheme.scheme_name)}
+              >
+                <Sparkles className="h-3.5 w-3.5 mr-1" />
+                <span>Explain with AI</span>
+              </Button>
+            )}
+
+            <Button
+              variant="ghost"
+              className="h-9 w-9 p-0 border rounded-lg"
+              onClick={() => window.open(scheme.official_website, "_blank", "noopener,noreferrer")}
+              title="Official Portal"
+            >
+              <ExternalLink className="h-4 w-4" />
+            </Button>
+          </div>
         </div>
       </CardContent>
     </Card>

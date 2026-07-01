@@ -2,6 +2,7 @@ from collections.abc import Callable
 
 from models.scheme import Scheme
 from schemas.eligibility import EligibilityRequest, EligibilityResponse, SchemeDecision
+from services.recommendation_engine import RecommendationEngine
 
 
 ProfileRule = Callable[[EligibilityRequest], tuple[bool, list[str]]]
@@ -15,18 +16,26 @@ class EligibilityEngine:
     def evaluate(self, profile: EligibilityRequest) -> EligibilityResponse:
         eligible: list[SchemeDecision] = []
         ineligible: list[SchemeDecision] = []
+        rec_engine = RecommendationEngine(profile)
 
         for scheme in self.schemes:
             rule = self.rules.get(scheme.scheme_name, self._generic_rule(scheme))
             is_eligible, reasons = rule(profile)
-            decision = SchemeDecision(scheme=scheme, reasons=reasons)
+            score, breakdown = rec_engine.score_scheme(scheme)
+            decision = SchemeDecision(
+                scheme=scheme,
+                reasons=reasons,
+                score=score,
+                match_percentage=float(score),
+                breakdown=breakdown
+            )
             if is_eligible:
                 eligible.append(decision)
             else:
                 ineligible.append(decision)
 
-        eligible.sort(key=lambda item: (item.scheme.category, item.scheme.scheme_name))
-        ineligible.sort(key=lambda item: item.scheme.scheme_name)
+        eligible.sort(key=lambda item: (-item.match_percentage, item.scheme.category, item.scheme.scheme_name))
+        ineligible.sort(key=lambda item: (-item.match_percentage, item.scheme.scheme_name))
 
         return EligibilityResponse(
             eligible_schemes=eligible,
@@ -71,6 +80,9 @@ class EligibilityEngine:
             "Maharashtra Lek Ladki Yojana": self._lek_ladki,
             "Maharashtra Government Scholarship for Economically Backward Class Students": self._maha_ebc_scholarship,
             "Maharashtra Sanjay Gandhi Niradhar Anudan Yojana": self._sanjay_gandhi,
+            "Mukhyamantri Majhi Ladki Bahin Yojana": self._majhi_ladki_bahin,
+            "Namo Shetkari Mahasaman Yojana": self._namo_shetkari,
+            "Ramai Awas Yojana": self._ramai_awaas,
         }
 
     def _generic_rule(self, scheme: Scheme) -> ProfileRule:
@@ -236,3 +248,32 @@ class EligibilityEngine:
         if vulnerable and profile.income <= 21000:
             return True, ["Maharashtra vulnerable applicant income is within the MVP threshold."]
         return False, ["Requires vulnerable status and very low income in Maharashtra."]
+
+    def _majhi_ladki_bahin(self, profile: EligibilityRequest) -> tuple[bool, list[str]]:
+        if not self._state_allowed(profile, "Maharashtra"):
+            return False, ["Scheme is for Maharashtra residents."]
+        if profile.gender != "female":
+            return False, ["Scheme is exclusively for women."]
+        if not (21 <= profile.age <= 65):
+            return False, [f"Age {profile.age} is outside the eligible range of 21 to 65 years."]
+        if profile.income > 250000:
+            return False, [f"Income of Rs. {profile.income} exceeds the limit of Rs. 2.5 Lakh per year."]
+        return True, ["Applicant is a female Maharashtra resident aged 21-65 with eligible income."]
+
+    def _namo_shetkari(self, profile: EligibilityRequest) -> tuple[bool, list[str]]:
+        if not self._state_allowed(profile, "Maharashtra"):
+            return False, ["Scheme is for Maharashtra residents."]
+        if profile.farmer_status or self._occupation_has(profile, "farmer", "agriculture", "cultivator"):
+            return True, ["Applicant is a landholder farmer in Maharashtra registered under PM-Kisan."]
+        return False, ["Requires farmer status or agriculture-related occupation in Maharashtra."]
+
+    def _ramai_awaas(self, profile: EligibilityRequest) -> tuple[bool, list[str]]:
+        if not self._state_allowed(profile, "Maharashtra"):
+            return False, ["Scheme is for Maharashtra residents."]
+        if profile.has_pucca_house:
+            return False, ["Applicant already owns a pucca house."]
+        if profile.category not in {"SC", "ST"}:
+            return False, ["Ramai Awas is for SC or ST category households."]
+        if profile.income > 120000:
+            return False, [f"Income of Rs. {profile.income} exceeds the limit of Rs. 1.2 Lakh per year."]
+        return True, ["Applicant from SC/ST category lacks a pucca house and meets Maharashtra income limit."]

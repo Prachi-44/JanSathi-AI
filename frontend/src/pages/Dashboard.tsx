@@ -1,104 +1,291 @@
-import { ArrowRight, FileText, LockKeyhole, MessageSquareText } from "lucide-react";
-import { Link } from "react-router-dom";
+import { useEffect, useState } from "react";
+import { Link, useNavigate } from "react-router-dom";
+import { ArrowRight, Bookmark, BookmarkX, Clock, FileText, Landmark, LayoutDashboard, ShieldCheck, UserCheck } from "lucide-react";
 
-import { StatsStrip } from "../components/StatsStrip";
+import { useAuth } from "../context/AuthContext";
+import { getEligibilityHistory } from "../services/api";
 import { Button } from "../components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../components/ui/card";
-
-const capabilities = [
-  {
-    title: "Eligibility",
-    description: "Rule-based matching with clear reasons for every result.",
-    icon: FileText,
-  },
-  {
-    title: "Privacy",
-    description: "No raw document image is accepted or stored in this milestone.",
-    icon: LockKeyhole,
-  },
-  {
-    title: "Assistant",
-    description: "Grounded AI chat will unlock after retrieval is implemented.",
-    icon: MessageSquareText,
-  },
-];
+import { Skeleton } from "../components/ui/skeleton";
+import { useToast } from "../hooks/useToast";
 
 export function Dashboard() {
+  const { user, savedSchemes, toggleSaveScheme } = useAuth();
+  const [history, setHistory] = useState<any[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  
+  const { showToast } = useToast();
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    if (!user) {
+      navigate("/");
+      return;
+    }
+    
+    async function loadHistory() {
+      try {
+        const hist = await getEligibilityHistory();
+        setHistory(hist);
+      } catch (err) {
+        console.error("Failed to load history", err);
+      } finally {
+        setIsLoading(false);
+      }
+    }
+    loadHistory();
+  }, [user, navigate]);
+
+  async function handleRemoveScheme(name: string) {
+    try {
+      await toggleSaveScheme(name);
+      showToast({ title: "Scheme removed", description: `'${name}' was removed from your library.` });
+    } catch (e) {
+      showToast({ title: "Action failed", description: "Could not unsave scheme.", variant: "error" });
+    }
+  }
+
+  if (!user) {
+    return null;
+  }
+
+  // Get last profile checked
+  const lastCheck = history.length > 0 ? history[0] : null;
+  const lastProfile = lastCheck ? lastCheck.profile : null;
+
   return (
-    <main className="mx-auto grid max-w-7xl gap-8 px-4 py-8 sm:px-6 lg:px-8">
-      <section className="grid gap-6 rounded-lg border bg-card p-6 shadow-soft lg:grid-cols-[1fr_380px] lg:p-8">
-        <div className="max-w-3xl">
-          <p className="text-sm font-semibold uppercase text-primary">Citizen-first scheme discovery</p>
-          <h1 className="mt-3 text-3xl font-bold leading-tight sm:text-4xl">Find eligible government schemes with explainable rules.</h1>
-          <p className="mt-4 max-w-2xl text-base leading-7 text-muted-foreground">
-            JanSathi AI starts with a deterministic eligibility engine over a curated dataset, giving fast and auditable matches before AI features are added.
+    <main className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
+      {/* Header Banner */}
+      <div className="rounded-2xl bg-gradient-to-r from-primary/10 via-primary/5 to-transparent p-6 sm:p-8 border mb-8 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+        <div>
+          <p className="text-sm font-semibold text-primary uppercase tracking-wider">Citizen Service Portal</p>
+          <h1 className="text-3xl font-extrabold tracking-tight mt-1">Welcome back, {user.full_name}</h1>
+          <p className="text-muted-foreground mt-2 max-w-xl text-sm leading-relaxed">
+            Your citizen profile is active for state of <span className="font-semibold text-foreground">{user.state}</span>. Verify scheme eligibility or update your profile flags below.
           </p>
-          <div className="mt-6 flex flex-wrap gap-3">
-            <Link to="/eligibility">
-              <Button>
-                <span>Start eligibility check</span>
-                <ArrowRight className="h-4 w-4" />
+        </div>
+        <div className="flex gap-2">
+          {user.is_admin ? (
+            <Link to="/admin">
+              <Button variant="outline" className="h-11">
+                <LayoutDashboard className="h-4 w-4 mr-2" />
+                <span>Admin Panel</span>
               </Button>
             </Link>
-            <Link to="/schemes">
-              <Button variant="outline">Browse schemes</Button>
-            </Link>
-          </div>
+          ) : null}
+          <Link to="/eligibility">
+            <Button className="h-11 px-5">
+              <span>Start eligibility wizard</span>
+              <ArrowRight className="h-4 w-4 ml-2" />
+            </Button>
+          </Link>
         </div>
-        <div className="grid content-start gap-3">
-          {capabilities.map((item) => (
-            <div key={item.title} className="rounded-lg border bg-background p-4">
-              <div className="flex gap-3">
-                <span className="grid h-9 w-9 place-items-center rounded-md bg-accent/10 text-accent">
-                  <item.icon className="h-5 w-5" />
-                </span>
-                <div>
-                  <p className="font-semibold">{item.title}</p>
-                  <p className="mt-1 text-sm leading-6 text-muted-foreground">{item.description}</p>
+      </div>
+
+      {/* Metrics Row */}
+      <div className="grid gap-6 sm:grid-cols-3 mb-8">
+        <Card className="shadow-sm">
+          <CardHeader className="pb-2">
+            <CardDescription className="font-medium text-xs uppercase tracking-wider text-muted-foreground">Total Recommendations</CardDescription>
+            <CardTitle className="text-3xl font-extrabold mt-1">
+              {isLoading ? <Skeleton className="h-9 w-12" /> : history.length}
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-xs text-muted-foreground">Eligibility check history logs</p>
+          </CardContent>
+        </Card>
+
+        <Card className="shadow-sm">
+          <CardHeader className="pb-2">
+            <CardDescription className="font-medium text-xs uppercase tracking-wider text-muted-foreground">Saved Schemes</CardDescription>
+            <CardTitle className="text-3xl font-extrabold mt-1">{savedSchemes.length}</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-xs text-muted-foreground">Personal Scheme Library bookmarks</p>
+          </CardContent>
+        </Card>
+
+        <Card className="shadow-sm">
+          <CardHeader className="pb-2">
+            <CardDescription className="font-medium text-xs uppercase tracking-wider text-muted-foreground">Security Protection</CardDescription>
+            <CardTitle className="text-3xl font-extrabold mt-1 text-primary flex items-center gap-1.5">
+              <ShieldCheck className="h-7 w-7 text-primary shrink-0" />
+              <span className="text-xl">AES-256</span>
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-xs text-muted-foreground">Sensitive parameters are encrypted</p>
+          </CardContent>
+        </Card>
+      </div>
+
+      <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_360px]">
+        {/* Left Column: Saved Schemes & History */}
+        <div className="space-y-8">
+          {/* Saved Schemes Card */}
+          <Card className="shadow-sm">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Bookmark className="h-5 w-5 text-primary" />
+                <span>Personal Scheme Library</span>
+              </CardTitle>
+              <CardDescription>
+                Schemes you bookmarked for quick access and tracking
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              {savedSchemes.length === 0 ? (
+                <div className="rounded-lg border border-dashed p-8 text-center text-muted-foreground text-sm">
+                  You have not saved any schemes yet. Browse schemes to save.
+                  <div className="mt-4">
+                    <Link to="/schemes">
+                      <Button variant="outline">Browse Directory</Button>
+                    </Link>
+                  </div>
                 </div>
-              </div>
-            </div>
-          ))}
+              ) : (
+                <div className="grid gap-3">
+                  {savedSchemes.map((name) => (
+                    <div key={name} className="flex items-center justify-between p-3.5 border rounded-xl bg-card hover:bg-muted/10 transition-colors">
+                      <div className="min-w-0 pr-4">
+                        <p className="font-semibold text-sm truncate">{name}</p>
+                        <p className="text-xs text-muted-foreground mt-0.5">Central/State scheme</p>
+                      </div>
+                      <Button variant="ghost" className="h-9 w-9 p-0 text-destructive hover:bg-destructive/10" onClick={() => handleRemoveScheme(name)}>
+                        <BookmarkX className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Recent Eligibility Checks */}
+          <Card className="shadow-sm">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Clock className="h-5 w-5 text-primary" />
+                <span>Recent Eligibility Checks</span>
+              </CardTitle>
+              <CardDescription>
+                History of rule-based eligibility matching sessions
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              {isLoading ? (
+                <div className="space-y-3">
+                  <Skeleton className="h-16 w-full" />
+                  <Skeleton className="h-16 w-full" />
+                </div>
+              ) : history.length === 0 ? (
+                <div className="rounded-lg border border-dashed p-8 text-center text-muted-foreground text-sm">
+                  No checks performed yet. Run the eligibility wizard to start.
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {history.slice(0, 5).map((log) => (
+                    <div key={log._id} className="p-4 border rounded-xl bg-muted/10">
+                      <div className="flex justify-between items-start mb-2">
+                        <span className="text-xs font-semibold text-muted-foreground flex items-center gap-1">
+                          <UserCheck className="h-3.5 w-3.5" />
+                          <span>{log.profile.name || "Anonymous Citizen"}</span>
+                        </span>
+                        <span className="text-xs text-muted-foreground">
+                          {new Date(log.created_at).toLocaleDateString()}
+                        </span>
+                      </div>
+                      <p className="text-sm font-medium">
+                        Result: <span className="text-primary font-semibold">{log.eligible_scheme_names.length} Eligible</span>, {log.ineligible_scheme_names.length} Ineligible
+                      </p>
+                      {log.eligible_scheme_names.length > 0 && (
+                        <div className="mt-2 flex flex-wrap gap-1.5">
+                          {log.eligible_scheme_names.slice(0, 3).map((s: string) => (
+                            <span key={s} className="bg-primary/5 text-primary border border-primary/20 rounded-md px-2 py-0.5 text-xs truncate max-w-[150px]">
+                              {s}
+                            </span>
+                          ))}
+                          {log.eligible_scheme_names.length > 3 && (
+                            <span className="text-xs text-muted-foreground self-center">
+                              +{log.eligible_scheme_names.length - 3} more
+                            </span>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
         </div>
-      </section>
 
-      <StatsStrip />
-
-      <section className="grid gap-4 lg:grid-cols-3">
-        <Card>
-          <CardHeader>
-            <CardTitle>Dataset</CardTitle>
-            <CardDescription>20-30 scheme MVP scope with strong coverage for farmers, students, women, health, housing, business, and Maharashtra residents.</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <Link to="/schemes" className="text-sm font-semibold text-primary hover:underline">
-              View all schemes
-            </Link>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader>
-            <CardTitle>Backend</CardTitle>
-            <CardDescription>FastAPI, Pydantic schemas, request logging, rate limiting, and MongoDB Atlas-ready persistence.</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <a href="http://localhost:8000/docs" className="text-sm font-semibold text-primary hover:underline" target="_blank" rel="noreferrer">
-              Open API docs
-            </a>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader>
-            <CardTitle>Roadmap</CardTitle>
-            <CardDescription>OCR, ChromaDB retrieval, Gemini 2.5 Flash, translation, and voice are isolated into dedicated service modules.</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <Link to="/eligibility" className="text-sm font-semibold text-primary hover:underline">
-              Validate milestone
-            </Link>
-          </CardContent>
-        </Card>
-      </section>
+        {/* Right Column: Profile Summary */}
+        <div>
+          <Card className="shadow-sm">
+            <CardHeader>
+              <CardTitle>Profile Summary</CardTitle>
+              <CardDescription>Your current demographic parameters</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="divide-y text-sm">
+                <div className="flex justify-between py-2.5">
+                  <span className="text-muted-foreground">Name</span>
+                  <span className="font-medium text-foreground">{user.full_name}</span>
+                </div>
+                <div className="flex justify-between py-2.5">
+                  <span className="text-muted-foreground">Email</span>
+                  <span className="font-medium text-foreground">{user.email}</span>
+                </div>
+                <div className="flex justify-between py-2.5">
+                  <span className="text-muted-foreground">State of Residence</span>
+                  <span className="font-medium text-foreground">{user.state}</span>
+                </div>
+                {lastProfile ? (
+                  <>
+                    <div className="flex justify-between py-2.5">
+                      <span className="text-muted-foreground">Age</span>
+                      <span className="font-medium text-foreground">{lastProfile.age} yrs</span>
+                    </div>
+                    <div className="flex justify-between py-2.5">
+                      <span className="text-muted-foreground">Gender</span>
+                      <span className="font-medium text-foreground capitalize">{lastProfile.gender}</span>
+                    </div>
+                    <div className="flex justify-between py-2.5">
+                      <span className="text-muted-foreground">Occupation</span>
+                      <span className="font-medium text-foreground capitalize">{lastProfile.occupation}</span>
+                    </div>
+                    <div className="flex justify-between py-2.5">
+                      <span className="text-muted-foreground">Annual Income</span>
+                      <span className="font-medium text-foreground">Rs. {lastProfile.income.toLocaleString()}</span>
+                    </div>
+                    <div className="flex justify-between py-2.5">
+                      <span className="text-muted-foreground">Category</span>
+                      <span className="font-medium text-foreground">{lastProfile.category}</span>
+                    </div>
+                    <div className="flex justify-between py-2.5">
+                      <span className="text-muted-foreground">Disability Flag</span>
+                      <span className="font-medium text-foreground">{lastProfile.disability_status ? "Yes" : "No"}</span>
+                    </div>
+                  </>
+                ) : (
+                  <div className="py-4 text-center text-xs text-muted-foreground">
+                    Perform an eligibility check to complete your profile metrics.
+                  </div>
+                )}
+              </div>
+              <div className="mt-6">
+                <Link to="/eligibility">
+                  <Button variant="outline" className="w-full">
+                    Update Profile Data
+                  </Button>
+                </Link>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
     </main>
   );
 }

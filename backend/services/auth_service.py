@@ -40,6 +40,40 @@ def _verify_password(password: str, stored_hash: str) -> bool:
     return hmac.compare_digest(_hash_password(password, salt), stored_hash)
 
 
+_demo_users["admin@jansathi.gov.in"] = {
+    "_id": "admin_demo_id",
+    "full_name": "Admin Officer",
+    "email": "admin@jansathi.gov.in",
+    "state": "Delhi",
+    "password_hash": _hash_password("admin123", salt="demosaltadmin"),
+    "created_at": datetime.now(UTC),
+}
+_demo_users["citizen@jansathi.gov.in"] = {
+    "_id": "citizen_demo_id",
+    "full_name": "Aarav Sharma",
+    "email": "citizen@jansathi.gov.in",
+    "state": "Maharashtra",
+    "password_hash": _hash_password("citizen123", salt="demosaltcitizen"),
+    "created_at": datetime.now(UTC),
+}
+
+
+async def seed_demo_users() -> None:
+    if not mongo_manager.is_connected:
+        return
+    for email, info in _demo_users.items():
+        existing = await mongo_manager.db.users.find_one({"email": email})
+        if not existing:
+            user_doc = dict(info)
+            await mongo_manager.db.users.insert_one(user_doc)
+            await mongo_manager.save_audit_log(
+                user_id=info["_id"],
+                action="SEED_DEMO_USER",
+                details={"email": email}
+            )
+
+
+
 def create_access_token(user: UserPublic) -> str:
     settings = get_settings()
     header = {"alg": "HS256", "typ": "JWT"}
@@ -113,11 +147,36 @@ async def register_user(payload: UserCreate) -> UserPublic:
         "created_at": datetime.now(UTC),
     }
     stored = await _store_user(user)
-    return _public_user(stored)
+    user_public = _public_user(stored)
+    
+    # Save Audit Log
+    await mongo_manager.save_audit_log(
+        user_id=user_public.id,
+        action="USER_REGISTER",
+        details={"email": user_public.email, "state": user_public.state}
+    )
+    
+    return user_public
 
 
 async def authenticate_user(payload: UserLogin) -> UserPublic:
     user = await _find_user_by_email(payload.email)
     if not user or not _verify_password(payload.password, user["password_hash"]):
+        # Log failed login attempt
+        await mongo_manager.save_audit_log(
+            user_id=None,
+            action="USER_LOGIN_FAILED",
+            details={"email": payload.email}
+        )
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid email or password")
-    return _public_user(user)
+    
+    user_public = _public_user(user)
+    
+    # Log successful login
+    await mongo_manager.save_audit_log(
+        user_id=user_public.id,
+        action="USER_LOGIN",
+        details={"email": user_public.email}
+    )
+    
+    return user_public

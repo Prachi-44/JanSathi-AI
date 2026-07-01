@@ -11,6 +11,8 @@ EmploymentStatus = Literal["employed", "self_employed", "unemployed", "student",
 
 
 class EligibilityRequest(BaseModel):
+    name: str = Field(default="Anonymous Citizen", min_length=2, max_length=100)
+    consent: bool = Field(default=False)
     age: int = Field(ge=0, le=120)
     gender: Gender
     occupation: str = Field(min_length=2, max_length=80)
@@ -34,6 +36,9 @@ class EligibilityRequest(BaseModel):
 class SchemeDecision(BaseModel):
     scheme: Scheme
     reasons: list[str]
+    score: int = 0
+    match_percentage: float = 0.0
+    breakdown: dict[str, bool] = Field(default_factory=dict)
 
 
 class EligibilityResponse(BaseModel):

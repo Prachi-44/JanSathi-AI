@@ -3,7 +3,7 @@ import { createContext, useCallback, useContext, useMemo, useState, type ReactNo
 interface Toast {
   id: string;
   title: string;
-  description?: string;
+  description?: any;
   variant?: "default" | "error";
 }
 
@@ -25,7 +25,29 @@ export function ToastProvider({ children }: { children: ReactNode }) {
   const showToast = useCallback(
     (toast: Omit<Toast, "id">) => {
       const id = crypto.randomUUID();
-      setToasts((current) => [...current.slice(-2), { ...toast, id }]);
+      let formattedDescription = toast.description;
+      if (formattedDescription && typeof formattedDescription !== "string") {
+        try {
+          if (Array.isArray(formattedDescription)) {
+            formattedDescription = formattedDescription
+              .map((d: any) => {
+                if (d && typeof d === "object") {
+                  const field = d.loc ? d.loc.filter((l: any) => l !== "body" && l !== "query").join(".") : "";
+                  return `${field ? field + ": " : ""}${d.msg || JSON.stringify(d)}`;
+                }
+                return String(d);
+              })
+              .join(", ");
+          } else if (typeof formattedDescription === "object") {
+            formattedDescription = formattedDescription.message || JSON.stringify(formattedDescription);
+          } else {
+            formattedDescription = String(formattedDescription);
+          }
+        } catch (e) {
+          formattedDescription = "An unexpected error occurred.";
+        }
+      }
+      setToasts((current) => [...current.slice(-2), { ...toast, description: formattedDescription, id }]);
       window.setTimeout(() => dismissToast(id), 4500);
     },
     [dismissToast],
