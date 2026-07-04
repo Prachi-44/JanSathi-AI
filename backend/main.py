@@ -72,3 +72,9 @@ async def health() -> HealthResponse:
         environment=settings.app_env,
         mongodb="connected" if mongo_manager.is_connected else "disabled",
     )
+@app.get("/", tags=["health"])
+async def root():
+    return {
+        "status": "ok",
+        "message": "JanSathi AI Backend is running"
+    }
