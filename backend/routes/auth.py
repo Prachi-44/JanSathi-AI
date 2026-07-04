@@ -1,8 +1,8 @@
 from fastapi import APIRouter, Depends
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
-from schemas.auth import AuthResponse, UserCreate, UserLogin, UserPublic
-from services.auth_service import (
+from ..schemas.auth import AuthResponse, UserCreate, UserLogin, UserPublic
+from ..services.auth_service import (
     _find_user_by_email,
     _public_user,
     authenticate_user,

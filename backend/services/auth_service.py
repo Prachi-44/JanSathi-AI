@@ -8,9 +8,9 @@ from typing import Any
 
 from fastapi import HTTPException, status
 
-from config import get_settings
-from schemas.auth import UserCreate, UserLogin, UserProfile, UserPublic
-from services.database import mongo_manager
+from ..config import get_settings
+from ..schemas.auth import UserCreate, UserLogin, UserProfile, UserPublic
+from ..services.database import mongo_manager
 
 _demo_users: dict[str, dict[str, Any]] = {}
 

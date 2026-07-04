@@ -4,17 +4,17 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from config import get_settings
-from middleware.logging import RequestLoggingMiddleware
-from middleware.rate_limit import RateLimitMiddleware
-from routes.auth import router as auth_router
-from routes.eligibility import router as eligibility_router
-from routes.schemes import router as schemes_router
-from routes.feedback import router as feedback_router
-from routes.admin import router as admin_router
-from routes.ocr import router as ocr_router
-from schemas.common import HealthResponse
-from services.database import mongo_manager
+from .config import get_settings
+from .middleware.logging import RequestLoggingMiddleware
+from .middleware.rate_limit import RateLimitMiddleware
+from .routes.auth import router as auth_router
+from .routes.eligibility import router as eligibility_router
+from .routes.schemes import router as schemes_router
+from .routes.feedback import router as feedback_router
+from .routes.admin import router as admin_router
+from .routes.ocr import router as ocr_router
+from .schemas.common import HealthResponse
+from .services.database import mongo_manager
 
 logging.basicConfig(
     level=logging.INFO,
