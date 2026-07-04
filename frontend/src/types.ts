@@ -2,6 +2,33 @@ export type Gender = "female" | "male" | "other" | "prefer_not_to_say";
 export type Category = "General" | "OBC" | "SC" | "ST" | "EWS";
 export type EmploymentStatus = "employed" | "self_employed" | "unemployed" | "student" | "retired";
 
+export interface UserProfile {
+  name?: string | null;
+  age?: number | null;
+  gender?: Gender | null;
+  occupation?: string | null;
+  income?: number | null;
+  state?: string | null;
+  disability_status?: boolean | null;
+  category?: Category | null;
+  student_status?: boolean | null;
+  farmer_status?: boolean | null;
+  employment_status?: EmploymentStatus | null;
+  has_pucca_house?: boolean | null;
+  rural_resident?: boolean | null;
+  has_bank_account?: boolean | null;
+  consent?: boolean | null;
+}
+
+export interface User {
+  id: string;
+  full_name: string;
+  email: string;
+  state: string;
+  is_admin?: boolean;
+  profile?: UserProfile | null;
+}
+
 export interface EligibilityRequest {
   name: string;
   consent: boolean;

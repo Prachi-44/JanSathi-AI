@@ -1,6 +1,24 @@
 from pydantic import BaseModel, Field, field_validator
 
 
+class UserProfile(BaseModel):
+    name: str | None = None
+    age: int | None = None
+    gender: str | None = None
+    occupation: str | None = None
+    income: int | None = None
+    state: str | None = None
+    disability_status: bool | None = None
+    category: str | None = None
+    student_status: bool | None = None
+    farmer_status: bool | None = None
+    employment_status: str | None = None
+    has_pucca_house: bool | None = None
+    rural_resident: bool | None = None
+    has_bank_account: bool | None = None
+    consent: bool | None = None
+
+
 class UserCreate(BaseModel):
     full_name: str = Field(min_length=2, max_length=120)
     email: str = Field(min_length=5, max_length=160)
@@ -36,6 +54,7 @@ class UserPublic(BaseModel):
     full_name: str
     email: str
     state: str
+    profile: UserProfile | None = None
 
 
 class AuthResponse(BaseModel):

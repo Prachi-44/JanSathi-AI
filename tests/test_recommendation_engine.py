@@ -25,24 +25,51 @@ def test_recommendation_calculation_is_accurate() -> None:
         has_pucca_house=False,
         has_bank_account=True,
     )
-    
+
     repo = _repository()
     pm_kisan = repo.get_by_name("PM Kisan Samman Nidhi")
     assert pm_kisan is not None
-    
+
     rec_engine = RecommendationEngine(profile)
     score, breakdown = rec_engine.score_scheme(pm_kisan)
-    
-    # Assert breakdown has all required keys
-    for key in ["occupation", "income", "state", "age", "category"]:
+
+    for key in ["occupation", "income", "state", "age", "category", "gender", "special_flags"]:
         assert key in breakdown
-        
-    # Since profile occupation is farmer and PM Kisan is for farmers, occupation should be True
+
     assert breakdown["occupation"] is True
-    # Since PM Kisan has no income limit, income should match
     assert breakdown["income"] is True
-    # Since PM Kisan is All India, state should match
     assert breakdown["state"] is True
-    
-    # Total score should be a valid percentage
     assert 0 <= score <= 100
+
+
+def test_student_profile_prioritizes_scholarships_over_farmer_schemes() -> None:
+    profile = EligibilityRequest(
+        name="Student Citizen",
+        consent=True,
+        age=19,
+        gender="female",
+        occupation="student",
+        income=90000,
+        state="Maharashtra",
+        disability_status=False,
+        category="SC",
+        student_status=True,
+        farmer_status=False,
+        employment_status="student",
+        rural_resident=False,
+        has_pucca_house=True,
+        has_bank_account=True,
+    )
+
+    repo = _repository()
+    scholarship = repo.get_by_name("National Scholarship Portal - Post-Matric Scholarship for SC Students")
+    pm_kisan = repo.get_by_name("PM Kisan Samman Nidhi")
+    assert scholarship is not None
+    assert pm_kisan is not None
+
+    rec_engine = RecommendationEngine(profile)
+    scholarship_score, _ = rec_engine.score_scheme(scholarship)
+    pm_kisan_score, _ = rec_engine.score_scheme(pm_kisan)
+
+    assert scholarship_score >= 70
+    assert pm_kisan_score <= 40

@@ -36,6 +36,9 @@ async def check_eligibility(
     response = engine.evaluate(payload)
     
     user_id = user["sub"] if user else None
+    if user_id:
+        await mongo_manager.save_user_profile(user_id, payload.model_dump())
+
     await mongo_manager.save_eligibility_history(
         {
             "user_id": user_id,

@@ -267,6 +267,22 @@ export function AdminDashboard() {
           <div className="grid gap-6 md:grid-cols-2">
             <Card>
               <CardHeader>
+                <CardTitle className="text-base">Eligibility Activity</CardTitle>
+                <CardDescription>Recent eligibility checks and recommendation sessions.</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-3 text-sm">
+                {auditLogs.filter((log) => log.action === "ELIGIBILITY_CHECK").slice(0, 5).map((log) => (
+                  <div key={log._id || log.created_at} className="rounded-lg border bg-muted/10 p-3">
+                    <p className="text-xs font-semibold text-foreground">{log.details?.state || "Unknown state"}</p>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      {log.details?.eligible_count ?? 0} eligible • {log.details?.ineligible_count ?? 0} ineligible
+                    </p>
+                  </div>
+                ))}
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader>
                 <CardTitle className="text-base">Discovery Leaders</CardTitle>
                 <CardDescription>Most accessed and requested database items</CardDescription>
               </CardHeader>

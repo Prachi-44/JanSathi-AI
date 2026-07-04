@@ -16,7 +16,7 @@ export function EligibilityPage() {
   return (
     <main className="mx-auto grid max-w-7xl gap-6 px-4 py-8 sm:px-6 lg:grid-cols-[460px_minmax(0,1fr)] lg:px-8">
       {/* Left panel: Form Wizard */}
-      <section className="lg:sticky lg:top-24 lg:self-start space-y-4">
+      <section className="lg:sticky lg:top-24 lg:self-start space-y-4 lg:max-h-[calc(100vh-6rem)] lg:overflow-auto">
         <EligibilityForm onResult={setResult} />
         
         <div className="rounded-xl border bg-amber-500/5 p-4 text-xs text-amber-800 dark:text-amber-300 border-amber-500/20 flex gap-2">

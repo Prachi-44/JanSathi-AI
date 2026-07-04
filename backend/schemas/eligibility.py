@@ -39,6 +39,7 @@ class SchemeDecision(BaseModel):
     score: int = 0
     match_percentage: float = 0.0
     breakdown: dict[str, bool] = Field(default_factory=dict)
+    eligibility_status: str = "not_eligible"
 
 
 class EligibilityResponse(BaseModel):

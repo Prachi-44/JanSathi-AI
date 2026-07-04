@@ -176,6 +176,20 @@ class MongoManager:
         # In-memory fallback
         return self._demo_saved_schemes.get(user_id, [])
 
+    async def save_user_profile(self, user_id: str, profile: dict[str, Any]) -> bool:
+        if self._db is not None:
+            await self._db.users.update_one(
+                {"_id": user_id},
+                {"$set": {"profile": profile}},
+                upsert=True,
+            )
+            return True
+
+        if not hasattr(self, "_demo_user_profiles"):
+            self._demo_user_profiles: dict[str, dict[str, Any]] = {}
+        self._demo_user_profiles[user_id] = profile
+        return True
+
     async def save_audit_log(self, user_id: str | None, action: str, details: dict[str, Any] | None = None) -> str:
         document = {
             "user_id": user_id,

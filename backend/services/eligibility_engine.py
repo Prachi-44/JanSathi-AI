@@ -27,9 +27,10 @@ class EligibilityEngine:
                 reasons=reasons,
                 score=score,
                 match_percentage=float(score),
-                breakdown=breakdown
+                breakdown=breakdown,
+                eligibility_status=self._classify_status(is_eligible, score),
             )
-            if is_eligible:
+            if decision.eligibility_status in {"highly_eligible", "eligible"}:
                 eligible.append(decision)
             else:
                 ineligible.append(decision)
@@ -53,6 +54,15 @@ class EligibilityEngine:
                 "disability_status": profile.disability_status,
             },
         )
+
+    def _classify_status(self, is_eligible: bool, score: int) -> str:
+        if not is_eligible:
+            return "not_eligible"
+        if score >= 80:
+            return "highly_eligible"
+        if score >= 50:
+            return "eligible"
+        return "partially_eligible"
 
     def _build_rules(self) -> dict[str, ProfileRule]:
         return {
@@ -114,6 +124,10 @@ class EligibilityEngine:
             return True, ["Senior citizens aged 70 or above are treated as potentially eligible."]
         if profile.income <= 200000:
             return True, ["Household income is within the MVP threshold for economically vulnerable families."]
+        if profile.farmer_status and profile.state.casefold() == "maharashtra":
+            return True, ["Farmer profile in Maharashtra is treated as potentially eligible for health support."]
+        if profile.occupation.casefold() in {"farmer", "agriculture", "cultivator"} and profile.state.casefold() == "maharashtra":
+            return True, ["Agriculture occupation in Maharashtra aligns with the health-support coverage pathway."]
         return False, ["Income is above the MVP threshold and applicant is below 70 years."]
 
     def _pmay_urban(self, profile: EligibilityRequest) -> tuple[bool, list[str]]:
@@ -130,6 +144,8 @@ class EligibilityEngine:
             return False, ["Applicant already has a pucca house."]
         if not profile.rural_resident:
             return False, ["PMAY-Gramin is for rural households."]
+        if profile.farmer_status or self._occupation_has(profile, "farmer", "agriculture", "cultivator"):
+            return True, ["Farmer or agricultural household is treated as eligible for gramin housing support."]
         if profile.income <= 300000:
             return True, ["Rural applicant lacks a pucca house and income is within the MVP threshold."]
         return False, ["Income exceeds the MVP threshold used for PMAY-Gramin."]

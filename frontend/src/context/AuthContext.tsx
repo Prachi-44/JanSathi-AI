@@ -1,13 +1,6 @@
 import React, { createContext, useContext, useEffect, useState } from "react";
 import { api, getSavedSchemes, saveScheme, unsaveScheme } from "../services/api";
-
-export interface User {
-  id: string;
-  full_name: string;
-  email: string;
-  state: string;
-  is_admin?: boolean;
-}
+import type { User } from "../types";
 
 interface AuthContextType {
   user: User | null;

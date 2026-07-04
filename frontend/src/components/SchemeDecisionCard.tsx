@@ -33,9 +33,12 @@ export function SchemeDecisionCard({ decision, status, onExplain }: Props) {
 
   const isSaved = savedSchemes.includes(scheme.scheme_name);
   const catIcon = categoryIcons[scheme.category] || "🇮🇳";
-  
-  // Show AI Recommended badge if score is high (e.g. 75+)
   const isHighMatch = (score || 0) >= 75;
+
+  const breakdownLabels = Object.entries(breakdown || {}).filter(([, val]) => val);
+  const explanationText = status === "eligible"
+    ? `Recommended because: ${breakdownLabels.length ? breakdownLabels.map(([key]) => key.replace(/_/g, " ")).join(", ") : "profile overlap"}`
+    : `Not recommended because: ${breakdownLabels.length ? breakdownLabels.map(([key]) => key.replace(/_/g, " ")).join(", ") : "eligibility mismatch"}`;
 
   async function handleSaveToggle() {
     if (!user) {
@@ -98,6 +101,11 @@ export function SchemeDecisionCard({ decision, status, onExplain }: Props) {
             </div>
           </div>
         )}
+
+        <div className="rounded-lg border bg-background/50 p-2.5">
+          <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Recommendation Explanation</p>
+          <p className="mt-1 text-xs text-foreground">{explanationText}</p>
+        </div>
 
         {/* Reason breakdown */}
         <div>

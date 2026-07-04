@@ -35,6 +35,9 @@ def test_farmer_in_maharashtra_receives_pm_kisan_and_health_options() -> None:
     assert "Pradhan Mantri Awas Yojana - Gramin" in names
     assert "Mahatma Jyotirao Phule Jan Arogya Yojana" not in names
 
+    for decision in result.eligible_schemes + result.ineligible_schemes:
+        assert decision.eligibility_status in {"highly_eligible", "eligible", "partially_eligible", "not_eligible"}
+
 
 def test_sc_student_receives_sc_scholarships() -> None:
     profile = EligibilityRequest(

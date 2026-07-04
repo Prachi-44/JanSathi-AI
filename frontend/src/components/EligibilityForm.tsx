@@ -1,12 +1,13 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { FileUp, Loader2, ShieldCheck } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 
 import { checkEligibility, uploadDocumentOCR } from "../services/api";
-import type { EligibilityRequest, EligibilityResponse } from "../types";
+import type { EligibilityRequest, EligibilityResponse, UserProfile } from "../types";
 import { useToast } from "../hooks/useToast";
+import { useAuth } from "../context/AuthContext";
 import { Button } from "./ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "./ui/card";
 import { Field, checkboxClassName, inputClassName } from "./ui/form-field";
@@ -31,21 +32,21 @@ const schema = z.object({
   has_bank_account: z.boolean(),
 });
 
-const defaultValues: EligibilityRequest = {
-  name: "Prachi Dudhankar",
+const emptyDefaults: EligibilityRequest = {
+  name: "",
   consent: true,
-  age: 38,
-  gender: "female",
-  occupation: "farmer",
-  income: 150000,
-  state: "Maharashtra",
+  age: 18,
+  gender: "prefer_not_to_say",
+  occupation: "",
+  income: 0,
+  state: "",
   disability_status: false,
-  category: "OBC",
+  category: "General",
   student_status: false,
-  farmer_status: true,
-  employment_status: "self_employed",
+  farmer_status: false,
+  employment_status: "unemployed",
   has_pucca_house: false,
-  rural_resident: true,
+  rural_resident: false,
   has_bank_account: true,
 };
 
@@ -56,17 +57,42 @@ interface Props {
 export function EligibilityForm({ onResult }: Props) {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [ocrLoading, setOcrLoading] = useState(false);
+  const { user } = useAuth();
   const { showToast } = useToast();
   
   const {
     register,
     handleSubmit,
     setValue,
+    reset,
     formState: { errors },
   } = useForm<EligibilityRequest>({
     resolver: zodResolver(schema),
-    defaultValues,
+    defaultValues: emptyDefaults,
   });
+
+  useEffect(() => {
+    const profile = user?.profile as UserProfile | undefined;
+    const seededValues: EligibilityRequest = {
+      name: profile?.name || "",
+      consent: profile?.consent ?? true,
+      age: profile?.age ?? 18,
+      gender: profile?.gender || "prefer_not_to_say",
+      occupation: profile?.occupation || "",
+      income: profile?.income ?? 0,
+      state: profile?.state || user?.state || "",
+      disability_status: profile?.disability_status ?? false,
+      category: profile?.category || "General",
+      student_status: profile?.student_status ?? false,
+      farmer_status: profile?.farmer_status ?? false,
+      employment_status: profile?.employment_status || "unemployed",
+      has_pucca_house: profile?.has_pucca_house ?? false,
+      rural_resident: profile?.rural_resident ?? false,
+      has_bank_account: profile?.has_bank_account ?? true,
+    };
+
+    reset(seededValues);
+  }, [user, reset]);
 
   const booleanFields = useMemo(
     () => [
@@ -171,16 +197,16 @@ export function EligibilityForm({ onResult }: Props) {
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="sm:col-span-2">
               <Field label="Citizen Name" error={errors.name?.message}>
-                <input className={inputClassName} type="text" {...register("name")} />
+                <input className={inputClassName} type="text" placeholder="Enter your full name" {...register("name")} />
               </Field>
             </div>
-            
+
             <Field label="Age" error={errors.age?.message}>
-              <input className={inputClassName} type="number" min={0} max={120} {...register("age")} />
+              <input className={inputClassName} type="number" min={0} max={120} placeholder="18" {...register("age")} />
             </Field>
 
             <Field label="Annual Income (INR)" error={errors.income?.message}>
-              <input className={inputClassName} type="number" min={0} {...register("income")} />
+              <input className={inputClassName} type="number" min={0} placeholder="Annual Income (INR)" {...register("income")} />
             </Field>
 
             <Field label="Gender" error={errors.gender?.message}>
@@ -203,11 +229,11 @@ export function EligibilityForm({ onResult }: Props) {
             </Field>
 
             <Field label="Occupation" error={errors.occupation?.message}>
-              <input className={inputClassName} placeholder="e.g. Farmer, student" {...register("occupation")} />
+              <input className={inputClassName} placeholder="Student / Farmer / Worker" {...register("occupation")} />
             </Field>
 
             <Field label="State of Residence" error={errors.state?.message}>
-              <input className={inputClassName} placeholder="Maharashtra" {...register("state")} />
+              <input className={inputClassName} placeholder="Select State" {...register("state")} />
             </Field>
 
             <div className="sm:col-span-2">

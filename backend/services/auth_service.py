@@ -9,7 +9,7 @@ from typing import Any
 from fastapi import HTTPException, status
 
 from config import get_settings
-from schemas.auth import UserCreate, UserLogin, UserPublic
+from schemas.auth import UserCreate, UserLogin, UserProfile, UserPublic
 from services.database import mongo_manager
 
 _demo_users: dict[str, dict[str, Any]] = {}
@@ -126,11 +126,13 @@ async def _store_user(user: dict[str, Any]) -> dict[str, Any]:
 
 
 def _public_user(user: dict[str, Any]) -> UserPublic:
+    profile = user.get("profile")
     return UserPublic(
         id=str(user.get("_id", user["email"])),
         full_name=user["full_name"],
         email=user["email"],
         state=user["state"],
+        profile=UserProfile(**profile) if isinstance(profile, dict) else None,
     )
 
 
@@ -144,6 +146,7 @@ async def register_user(payload: UserCreate) -> UserPublic:
         "email": payload.email,
         "state": payload.state,
         "password_hash": _hash_password(payload.password),
+        "profile": {},
         "created_at": datetime.now(UTC),
     }
     stored = await _store_user(user)

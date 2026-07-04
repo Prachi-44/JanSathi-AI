@@ -1,9 +1,9 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { ArrowRight, Bookmark, BookmarkX, Clock, FileText, Landmark, LayoutDashboard, ShieldCheck, UserCheck } from "lucide-react";
+import { ArrowRight, Bookmark, BookmarkX, FileText, Landmark, LayoutDashboard, ShieldCheck, Sparkles } from "lucide-react";
 
 import { useAuth } from "../context/AuthContext";
-import { getEligibilityHistory } from "../services/api";
+import { checkEligibility, getEligibilityHistory } from "../services/api";
 import { Button } from "../components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../components/ui/card";
 import { Skeleton } from "../components/ui/skeleton";
@@ -12,7 +12,9 @@ import { useToast } from "../hooks/useToast";
 export function Dashboard() {
   const { user, savedSchemes, toggleSaveScheme } = useAuth();
   const [history, setHistory] = useState<any[]>([]);
+  const [recommendedSchemes, setRecommendedSchemes] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [isLoadingRecommendations, setIsLoadingRecommendations] = useState(false);
   
   const { showToast } = useToast();
   const navigate = useNavigate();
@@ -33,7 +35,43 @@ export function Dashboard() {
         setIsLoading(false);
       }
     }
+
+    async function loadRecommendations() {
+      if (!user.profile || !user.profile.occupation || !user.profile.state) {
+        setRecommendedSchemes([]);
+        return;
+      }
+
+      setIsLoadingRecommendations(true);
+      try {
+        const result = await checkEligibility({
+          name: user.full_name || "Anonymous Citizen",
+          consent: true,
+          age: user.profile.age ?? 18,
+          gender: user.profile.gender || "prefer_not_to_say",
+          occupation: user.profile.occupation || "",
+          income: user.profile.income ?? 0,
+          state: user.profile.state || user.state,
+          disability_status: user.profile.disability_status ?? false,
+          category: user.profile.category || "General",
+          student_status: user.profile.student_status ?? false,
+          farmer_status: user.profile.farmer_status ?? false,
+          employment_status: user.profile.employment_status || "unemployed",
+          has_pucca_house: user.profile.has_pucca_house ?? false,
+          rural_resident: user.profile.rural_resident ?? false,
+          has_bank_account: user.profile.has_bank_account ?? true,
+        });
+        setRecommendedSchemes(result.eligible_schemes.slice(0, 4));
+      } catch (err) {
+        console.error("Failed to load recommendations", err);
+        setRecommendedSchemes([]);
+      } finally {
+        setIsLoadingRecommendations(false);
+      }
+    }
+
     loadHistory();
+    loadRecommendations();
   }, [user, navigate]);
 
   async function handleRemoveScheme(name: string) {
@@ -162,57 +200,40 @@ export function Dashboard() {
             </CardContent>
           </Card>
 
-          {/* Recent Eligibility Checks */}
+          {/* Recommended Schemes */}
           <Card className="shadow-sm">
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
-                <Clock className="h-5 w-5 text-primary" />
-                <span>Recent Eligibility Checks</span>
+                <Sparkles className="h-5 w-5 text-primary" />
+                <span>Recommended Schemes</span>
               </CardTitle>
               <CardDescription>
-                History of rule-based eligibility matching sessions
+                Personalized matches derived from your saved profile and deterministic eligibility rules.
               </CardDescription>
             </CardHeader>
             <CardContent>
-              {isLoading ? (
+              {isLoadingRecommendations ? (
                 <div className="space-y-3">
                   <Skeleton className="h-16 w-full" />
                   <Skeleton className="h-16 w-full" />
                 </div>
-              ) : history.length === 0 ? (
+              ) : recommendedSchemes.length === 0 ? (
                 <div className="rounded-lg border border-dashed p-8 text-center text-muted-foreground text-sm">
-                  No checks performed yet. Run the eligibility wizard to start.
+                  Complete your profile to receive better recommendations.
                 </div>
               ) : (
-                <div className="space-y-4">
-                  {history.slice(0, 5).map((log) => (
-                    <div key={log._id} className="p-4 border rounded-xl bg-muted/10">
-                      <div className="flex justify-between items-start mb-2">
-                        <span className="text-xs font-semibold text-muted-foreground flex items-center gap-1">
-                          <UserCheck className="h-3.5 w-3.5" />
-                          <span>{log.profile.name || "Anonymous Citizen"}</span>
-                        </span>
-                        <span className="text-xs text-muted-foreground">
-                          {new Date(log.created_at).toLocaleDateString()}
+                <div className="space-y-3">
+                  {recommendedSchemes.map((decision) => (
+                    <div key={decision.scheme.scheme_name} className="rounded-xl border bg-muted/10 p-3">
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <p className="text-sm font-semibold">{decision.scheme.scheme_name}</p>
+                          <p className="mt-1 text-xs text-muted-foreground">{decision.scheme.summary}</p>
+                        </div>
+                        <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-semibold text-primary">
+                          {decision.match_percentage}%
                         </span>
                       </div>
-                      <p className="text-sm font-medium">
-                        Result: <span className="text-primary font-semibold">{log.eligible_scheme_names.length} Eligible</span>, {log.ineligible_scheme_names.length} Ineligible
-                      </p>
-                      {log.eligible_scheme_names.length > 0 && (
-                        <div className="mt-2 flex flex-wrap gap-1.5">
-                          {log.eligible_scheme_names.slice(0, 3).map((s: string) => (
-                            <span key={s} className="bg-primary/5 text-primary border border-primary/20 rounded-md px-2 py-0.5 text-xs truncate max-w-[150px]">
-                              {s}
-                            </span>
-                          ))}
-                          {log.eligible_scheme_names.length > 3 && (
-                            <span className="text-xs text-muted-foreground self-center">
-                              +{log.eligible_scheme_names.length - 3} more
-                            </span>
-                          )}
-                        </div>
-                      )}
                     </div>
                   ))}
                 </div>
@@ -242,36 +263,36 @@ export function Dashboard() {
                   <span className="text-muted-foreground">State of Residence</span>
                   <span className="font-medium text-foreground">{user.state}</span>
                 </div>
-                {lastProfile ? (
+                {user.profile && Object.values(user.profile).some((value) => value !== null && value !== undefined && value !== "") ? (
                   <>
                     <div className="flex justify-between py-2.5">
                       <span className="text-muted-foreground">Age</span>
-                      <span className="font-medium text-foreground">{lastProfile.age} yrs</span>
+                      <span className="font-medium text-foreground">{user.profile.age ?? "—"} yrs</span>
                     </div>
                     <div className="flex justify-between py-2.5">
                       <span className="text-muted-foreground">Gender</span>
-                      <span className="font-medium text-foreground capitalize">{lastProfile.gender}</span>
+                      <span className="font-medium text-foreground capitalize">{user.profile.gender ?? "—"}</span>
                     </div>
                     <div className="flex justify-between py-2.5">
                       <span className="text-muted-foreground">Occupation</span>
-                      <span className="font-medium text-foreground capitalize">{lastProfile.occupation}</span>
+                      <span className="font-medium text-foreground capitalize">{user.profile.occupation ?? "—"}</span>
                     </div>
                     <div className="flex justify-between py-2.5">
                       <span className="text-muted-foreground">Annual Income</span>
-                      <span className="font-medium text-foreground">Rs. {lastProfile.income.toLocaleString()}</span>
+                      <span className="font-medium text-foreground">{user.profile.income ? `Rs. ${user.profile.income.toLocaleString()}` : "—"}</span>
                     </div>
                     <div className="flex justify-between py-2.5">
                       <span className="text-muted-foreground">Category</span>
-                      <span className="font-medium text-foreground">{lastProfile.category}</span>
+                      <span className="font-medium text-foreground">{user.profile.category ?? "—"}</span>
                     </div>
                     <div className="flex justify-between py-2.5">
                       <span className="text-muted-foreground">Disability Flag</span>
-                      <span className="font-medium text-foreground">{lastProfile.disability_status ? "Yes" : "No"}</span>
+                      <span className="font-medium text-foreground">{user.profile.disability_status ? "Yes" : "No"}</span>
                     </div>
                   </>
                 ) : (
                   <div className="py-4 text-center text-xs text-muted-foreground">
-                    Perform an eligibility check to complete your profile metrics.
+                    Complete your profile to receive better recommendations.
                   </div>
                 )}
               </div>
