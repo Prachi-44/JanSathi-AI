@@ -37,7 +37,7 @@ export function Dashboard() {
     }
 
     async function loadRecommendations() {
-      if (!user.profile || !user.profile.occupation || !user.profile.state) {
+      if (!currentUser.profile || !currentUser.profile.occupation || !currentUser.profile.state) {
         setRecommendedSchemes([]);
         return;
       }
@@ -45,21 +45,21 @@ export function Dashboard() {
       setIsLoadingRecommendations(true);
       try {
         const result = await checkEligibility({
-          name: user.full_name || "Anonymous Citizen",
+          name: currentUser.full_name || "Anonymous Citizen",
           consent: true,
-          age: user.profile.age ?? 18,
-          gender: user.profile.gender || "prefer_not_to_say",
-          occupation: user.profile.occupation || "",
-          income: user.profile.income ?? 0,
-          state: user.profile.state || user.state,
-          disability_status: user.profile.disability_status ?? false,
-          category: user.profile.category || "General",
-          student_status: user.profile.student_status ?? false,
-          farmer_status: user.profile.farmer_status ?? false,
-          employment_status: user.profile.employment_status || "unemployed",
-          has_pucca_house: user.profile.has_pucca_house ?? false,
-          rural_resident: user.profile.rural_resident ?? false,
-          has_bank_account: user.profile.has_bank_account ?? true,
+          age: currentUser.profile.age ?? 18,
+          gender: currentUser.profile.gender || "prefer_not_to_say",
+          occupation: currentUser.profile.occupation || "",
+          income: currentUser.profile.income ?? 0,
+          state: currentUser.profile.state || currentUser.state,
+          disability_status: currentUser.profile.disability_status ?? false,
+          category: currentUser.profile.category || "General",
+          student_status: currentUser.profile.student_status ?? false,
+          farmer_status: currentUser.profile.farmer_status ?? false,
+          employment_status: currentUser.profile.employment_status || "unemployed",
+          has_pucca_house: currentUser.profile.has_pucca_house ?? false,
+          rural_resident: currentUser.profile.rural_resident ?? false,
+          has_bank_account: currentUser.profile.has_bank_account ?? true,
         });
         setRecommendedSchemes(result.eligible_schemes.slice(0, 4));
       } catch (err) {
@@ -87,6 +87,8 @@ export function Dashboard() {
     return null;
   }
 
+  const currentUser = user;
+
   // Get last profile checked
   const lastCheck = history.length > 0 ? history[0] : null;
   const lastProfile = lastCheck ? lastCheck.profile : null;
@@ -97,13 +99,13 @@ export function Dashboard() {
       <div className="rounded-2xl bg-gradient-to-r from-primary/10 via-primary/5 to-transparent p-6 sm:p-8 border mb-8 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
           <p className="text-sm font-semibold text-primary uppercase tracking-wider">Citizen Service Portal</p>
-          <h1 className="text-3xl font-extrabold tracking-tight mt-1">Welcome back, {user.full_name}</h1>
+          <h1 className="text-3xl font-extrabold tracking-tight mt-1">Welcome back, {currentUser.full_name}</h1>
           <p className="text-muted-foreground mt-2 max-w-xl text-sm leading-relaxed">
-            Your citizen profile is active for state of <span className="font-semibold text-foreground">{user.state}</span>. Verify scheme eligibility or update your profile flags below.
+            Your citizen profile is active for state of <span className="font-semibold text-foreground">{currentUser.state}</span>. Verify scheme eligibility or update your profile flags below.
           </p>
         </div>
         <div className="flex gap-2">
-          {user.is_admin ? (
+          {currentUser.is_admin ? (
             <Link to="/admin">
               <Button variant="outline" className="h-11">
                 <LayoutDashboard className="h-4 w-4 mr-2" />
@@ -253,41 +255,41 @@ export function Dashboard() {
               <div className="divide-y text-sm">
                 <div className="flex justify-between py-2.5">
                   <span className="text-muted-foreground">Name</span>
-                  <span className="font-medium text-foreground">{user.full_name}</span>
+                  <span className="font-medium text-foreground">{currentUser.full_name}</span>
                 </div>
                 <div className="flex justify-between py-2.5">
                   <span className="text-muted-foreground">Email</span>
-                  <span className="font-medium text-foreground">{user.email}</span>
+                  <span className="font-medium text-foreground">{currentUser.email}</span>
                 </div>
                 <div className="flex justify-between py-2.5">
                   <span className="text-muted-foreground">State of Residence</span>
-                  <span className="font-medium text-foreground">{user.state}</span>
+                  <span className="font-medium text-foreground">{currentUser.state}</span>
                 </div>
-                {user.profile && Object.values(user.profile).some((value) => value !== null && value !== undefined && value !== "") ? (
+                {currentUser.profile && Object.values(currentUser.profile).some((value) => value !== null && value !== undefined && value !== "") ? (
                   <>
                     <div className="flex justify-between py-2.5">
                       <span className="text-muted-foreground">Age</span>
-                      <span className="font-medium text-foreground">{user.profile.age ?? "—"} yrs</span>
+                      <span className="font-medium text-foreground">{currentUser.profile.age ?? "—"} yrs</span>
                     </div>
                     <div className="flex justify-between py-2.5">
                       <span className="text-muted-foreground">Gender</span>
-                      <span className="font-medium text-foreground capitalize">{user.profile.gender ?? "—"}</span>
+                      <span className="font-medium text-foreground capitalize">{currentUser.profile.gender ?? "—"}</span>
                     </div>
                     <div className="flex justify-between py-2.5">
                       <span className="text-muted-foreground">Occupation</span>
-                      <span className="font-medium text-foreground capitalize">{user.profile.occupation ?? "—"}</span>
+                      <span className="font-medium text-foreground capitalize">{currentUser.profile.occupation ?? "—"}</span>
                     </div>
                     <div className="flex justify-between py-2.5">
                       <span className="text-muted-foreground">Annual Income</span>
-                      <span className="font-medium text-foreground">{user.profile.income ? `Rs. ${user.profile.income.toLocaleString()}` : "—"}</span>
+                      <span className="font-medium text-foreground">{currentUser.profile.income ? `Rs. ${currentUser.profile.income.toLocaleString()}` : "—"}</span>
                     </div>
                     <div className="flex justify-between py-2.5">
                       <span className="text-muted-foreground">Category</span>
-                      <span className="font-medium text-foreground">{user.profile.category ?? "—"}</span>
+                      <span className="font-medium text-foreground">{currentUser.profile.category ?? "—"}</span>
                     </div>
                     <div className="flex justify-between py-2.5">
                       <span className="text-muted-foreground">Disability Flag</span>
-                      <span className="font-medium text-foreground">{user.profile.disability_status ? "Yes" : "No"}</span>
+                      <span className="font-medium text-foreground">{currentUser.profile.disability_status ? "Yes" : "No"}</span>
                     </div>
                   </>
                 ) : (
